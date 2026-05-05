@@ -17,3 +17,4 @@ variable "vnet_address_prefix" {
 variable "vnet_subnet_count" {
   type = number
 }
+

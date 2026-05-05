@@ -14,3 +14,4 @@ resource "azurerm_subnet" "Network_subnets" {
   virtual_network_name = azurerm_virtual_network.Vnet01.name
   address_prefixes     = [cidrsubnet(var.vnet_address_prefix,8,count.index)]
 }
+
