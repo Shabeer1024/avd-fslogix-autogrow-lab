@@ -16,7 +16,7 @@ subnets = {
 }
 
 nsg_name        = "nsg-avd-lab"
-admin_source_ip = "49.206.133.67"
+admin_source_ip = "49.206.129.195"
 
 
 
