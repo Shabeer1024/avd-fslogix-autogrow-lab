@@ -56,7 +56,7 @@ resource "azurerm_virtual_machine_extension" "install_ad" {
   auto_upgrade_minor_version = true
 
   protected_settings = jsonencode({
-    commandToExecute = "powershell.exe -ExecutionPolicy Unrestricted -EncodedCommand ${textencodebase64(var.install_script, "UTF-16LE")}"
+    script = base64encode(var.install_script)
   })
 
   timeouts {
