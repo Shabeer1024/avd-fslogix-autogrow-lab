@@ -1,50 +1,100 @@
 @'
 $ErrorActionPreference = "Stop"
-$logFile = "C:\Windows\Temp\install-ad.log"
-Start-Transcript -Path $logFile -Append
+$ProgressPreference    = "SilentlyContinue"
+$logFile               = "C:\Windows\Temp\install-ad.log"
+$errFile               = "C:\Windows\Temp\install-ad-error.txt"
+
+Start-Transcript -Path $logFile -Append -Force
+
+function Log($msg) { Write-Host "[$(Get-Date -Format HH:mm:ss)] $msg" }
 
 try {
-    $marker = "C:\Windows\Temp\ad-installed.marker"
-    if (Test-Path $marker) {
-        Write-Host "AD DS already installed. Exiting."
+    Log "Starting install-ad script"
+
+    # Idempotency - check actual AD state, not just a marker
+    $alreadyDC = $false
+    try {
+        $ntds = Get-Service NTDS -ErrorAction SilentlyContinue
+        if ($ntds -and $ntds.Status -eq 'Running') { $alreadyDC = $true }
+    } catch {}
+    if ($alreadyDC) {
+        Log "AD DS already running. Exiting cleanly."
         Stop-Transcript
         exit 0
     }
 
-    $domainName  = "${domain_name}"
-    $netbiosName = "${netbios_name}"
-
+    # Decode password
+    Log "Decoding DSRM password"
     $pwdBytes       = [Convert]::FromBase64String("${safe_mode_password_b64}")
     $safeModePwdRaw = [System.Text.Encoding]::UTF8.GetString($pwdBytes)
+    Log "Password length: $($safeModePwdRaw.Length)"
+    if ($safeModePwdRaw.Length -lt 12) { throw "Password too short" }
 
-    Write-Host "Domain: $domainName / NetBIOS: $netbiosName"
+    # Install features with retry (handles transient first-boot CDN issues)
+    Log "Installing AD-Domain-Services and DNS"
+    $installed = $false
+    for ($i = 1; $i -le 5; $i++) {
+        try {
+            Install-WindowsFeature -Name AD-Domain-Services, DNS, RSAT-AD-Tools `
+                -IncludeManagementTools -ErrorAction Stop | Out-Null
+            $installed = $true
+            Log "Feature install attempt $i succeeded"
+            break
+        } catch {
+            Log "Feature install attempt $i failed: $_"
+            if ($i -lt 5) { Start-Sleep -Seconds 30 }
+        }
+    }
+    if (-not $installed) { throw "Install-WindowsFeature failed after 5 attempts" }
 
-    Install-WindowsFeature -Name AD-Domain-Services, DNS, RSAT-AD-Tools `
-        -IncludeManagementTools -ErrorAction Stop
+    # Verify feature is actually installed
+    $ad = Get-WindowsFeature AD-Domain-Services
+    if ($ad.InstallState -ne 'Installed') {
+        throw "AD-Domain-Services state is $($ad.InstallState), expected Installed"
+    }
+    Log "AD-Domain-Services confirmed installed"
 
+    # Point DNS at loopback before promotion (avoids DNS conflicts)
+    Log "Configuring DNS to loopback"
+    $nic = Get-NetAdapter | Where-Object Status -eq 'Up' | Select-Object -First 1
+    if ($nic) {
+        Set-DnsClientServerAddress -InterfaceIndex $nic.ifIndex -ServerAddresses 127.0.0.1
+        Log "DNS set on $($nic.Name)"
+    }
+
+    # Promote to DC
+    Log "Promoting to DC, creating forest ${domain_name}"
     Import-Module ADDSDeployment
     $securePwd = ConvertTo-SecureString -String $safeModePwdRaw -AsPlainText -Force
 
     Install-ADDSForest `
-        -DomainName $domainName `
-        -DomainNetbiosName $netbiosName `
-        -ForestMode "WinThreshold" `
-        -DomainMode "WinThreshold" `
+        -DomainName                    "${domain_name}" `
+        -DomainNetbiosName             "${netbios_name}" `
+        -ForestMode                    "WinThreshold" `
+        -DomainMode                    "WinThreshold" `
         -InstallDns:$true `
         -CreateDnsDelegation:$false `
-        -DatabasePath "C:\Windows\NTDS" `
-        -LogPath "C:\Windows\NTDS" `
-        -SysvolPath "C:\Windows\SYSVOL" `
+        -DatabasePath                  "C:\Windows\NTDS" `
+        -LogPath                       "C:\Windows\NTDS" `
+        -SysvolPath                    "C:\Windows\SYSVOL" `
         -SafeModeAdministratorPassword $securePwd `
         -NoRebootOnCompletion:$false `
         -Force:$true
 
-    New-Item -Path $marker -ItemType File -Force | Out-Null
+    Log "Forest creation triggered. VM will reboot."
     Stop-Transcript
     exit 0
 }
 catch {
-    Write-Error "AD DS installation failed: $_"
+    $errorDetail = @"
+=== INSTALL-AD FAILURE ===
+Time:    $(Get-Date)
+Error:   $_
+Stack:   $($_.ScriptStackTrace)
+========================
+"@
+    Log $errorDetail
+    Set-Content -Path $errFile -Value $errorDetail
     Stop-Transcript
     exit 1
 }

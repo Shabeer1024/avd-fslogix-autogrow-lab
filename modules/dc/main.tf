@@ -58,6 +58,12 @@ resource "azurerm_virtual_machine_extension" "install_ad" {
   protected_settings = jsonencode({
     commandToExecute = "powershell.exe -ExecutionPolicy Unrestricted -EncodedCommand ${textencodebase64(var.install_script, "UTF-16LE")}"
   })
+
+  timeouts {
+    create = "45m"
+    update = "45m"
+    delete = "15m"
+  }
 }
 
 resource "azurerm_virtual_network_dns_servers" "this" {
