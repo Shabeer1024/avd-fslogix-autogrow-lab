@@ -3,19 +3,25 @@ Start-Transcript C:\Windows\Temp\install-ad.log -Append -Force
 try {
     Write-Host "[$(Get-Date -Format HH:mm:ss)] Starting"
 
-    # Install AD + DNS with retry
+# Install AD + DNS one feature at a time (multi-feature array can hit 0x80070057)
+$features = @("AD-Domain-Services", "DNS", "RSAT-AD-Tools")
+foreach ($feature in $features) {
     for ($i = 1; $i -le 5; $i++) {
         try {
-            Install-WindowsFeature AD-Domain-Services, DNS, RSAT-AD-Tools `
-                -IncludeManagementTools -EA Stop
-            Write-Host "Feature install OK on attempt $i"
+            Install-WindowsFeature -Name $feature -IncludeManagementTools -ErrorAction Stop
+            Write-Host "Feature $feature installed on attempt $i"
             break
         } catch {
-            Write-Host "Attempt $i failed: $_"
-            if ($i -eq 5) { throw }
+            Write-Host "Attempt $i for $feature failed: $_"
+            if ($i -eq 5) { throw "Failed to install $feature after 5 attempts" }
             Start-Sleep 30
         }
     }
+}
+Write-Host "All AD features installed successfully"
+
+
+
 
     # Decode password and promote
     $pwd = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("${safe_mode_password_b64}"))
