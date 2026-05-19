@@ -364,14 +364,12 @@ Planned future work:
 
 ## Author
 
-**Shabeer S** — Senior Consultant, EUC & Azure Architect at Infosys
+**Shabeer S** — Azure Cloud Enthusiast ☁️ | CloudOps  | Exploring Azure Administration | AVD Specialist | AZ-700 | AZ-140 | Terraform | Azure Networking | Modern Workspace | ITIL V4 |
 
 - 13+ years enterprise IT (EUC → Cloud Architect transition)
 - Certifications: AZ-140, AZ-700, ITIL v4 (AZ-305 + Terraform Associate in progress)
 - GitHub: [@Shabeer1024](https://github.com/Shabeer1024)
 - LinkedIn: [linkedin.com/in/shabeer-s-82690a156](https://linkedin.com/in/shabeer-s-82690a156)
-
-Open to Senior Cloud Architect roles. Currently focused on Gulf market (UAE, Qatar).
 
 ---
 
