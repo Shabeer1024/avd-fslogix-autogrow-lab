@@ -7,7 +7,7 @@ module "resource_group" {
 
 module "networking" {
   source              = "./modules/vnet"
-  resource_group_name = var.resource_group_name # ← creates dependency on Step 1
+  resource_group_name = var.resource_group_name
   location            = var.location
   vnet_name           = var.vnet_name
   vnet_address_space  = var.vnet_address_space
@@ -18,11 +18,10 @@ module "networking" {
   depends_on          = [module.resource_group]
 }
 
-
 resource "random_password" "dc_admin" {
   length           = 20
   special          = true
-  override_special = "!@#%^&*()-_=+[]{}<>?,." # ← removed $, ", `, ', \, /, :, ;, |
+  override_special = "!@#%^&*()-_=+[]{}<>?,."
   min_upper        = 2
   min_lower        = 2
   min_numeric      = 2
@@ -56,13 +55,35 @@ module "domain_controller" {
   domain_name        = var.domain_name
   safe_mode_password = random_password.dc_safe_mode.result
 
-  # install_script line REMOVED - module handles its own template
-
   auto_shutdown_time     = var.auto_shutdown_time
   auto_shutdown_timezone = var.auto_shutdown_timezone
   tags                   = var.tags
 
   depends_on = [module.networking]
+}
+
+# ============================================================================
+# CRITICAL: Update VNet DNS to point to the DC
+# This must happen AFTER the DC is up and AD-DS is installed,
+# but BEFORE the session host's NIC is created.
+# ============================================================================
+resource "azurerm_virtual_network_dns_servers" "use_dc_for_dns" {
+  virtual_network_id = module.networking.vnet_id
+  dns_servers        = [var.dc_private_ip]
+
+  depends_on = [module.domain_controller]
+}
+
+# ============================================================================
+# Wait for AD-DS to finish promoting and DNS service to be reachable
+# ============================================================================
+resource "time_sleep" "wait_for_dc_dns" {
+  depends_on = [
+    module.domain_controller,
+    azurerm_virtual_network_dns_servers.use_dc_for_dns
+  ]
+
+  create_duration = "180s"
 }
 
 module "avd_core" {
@@ -98,25 +119,26 @@ module "session_host" {
   auto_shutdown_timezone = var.auto_shutdown_timezone
   tags                   = var.tags
 
-  depends_on = [module.domain_controller, module.avd_core]
+  depends_on = [
+    time_sleep.wait_for_dc_dns,
+    module.avd_core
+  ]
 }
 
 module "fslogix_storage" {
   source = "./modules/fslogix-storage"
 
-  resource_group_name      = var.resource_group_name
-  location                 = var.location
-  storage_account_name     = var.fslogix_storage_account_name
-  share_quota_gb           = var.fslogix_share_quota_gb
-  fslogix_initial_size_mb  = var.fslogix_initial_size_mb
-  session_host_vm_id       = module.session_host.vm_id
-  session_host_vm_name     = module.session_host.vm_name
-  tags                     = var.tags
+  resource_group_name     = var.resource_group_name
+  location                = var.location
+  storage_account_name    = var.fslogix_storage_account_name
+  share_quota_gb          = var.fslogix_share_quota_gb
+  fslogix_initial_size_mb = var.fslogix_initial_size_mb
+  session_host_vm_id      = module.session_host.vm_id
+  session_host_vm_name    = module.session_host.vm_name
+  tags                    = var.tags
 
   depends_on = [module.session_host]
 }
-
-# FSLogix Automation (Hybrid Worker)
 
 module "fslogix_automation" {
   source = "./modules/fslogix-automation"
