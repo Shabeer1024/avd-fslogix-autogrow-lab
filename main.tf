@@ -62,25 +62,14 @@ module "domain_controller" {
   depends_on = [module.networking]
 }
 
-# ============================================================================
-# CRITICAL: Update VNet DNS to point to the DC
-# This must happen AFTER the DC is up and AD-DS is installed,
-# but BEFORE the session host's NIC is created.
-# ============================================================================
-resource "azurerm_virtual_network_dns_servers" "use_dc_for_dns" {
-  virtual_network_id = module.networking.vnet_id
-  dns_servers        = [var.dc_private_ip]
 
-  depends_on = [module.domain_controller]
-}
 
 # ============================================================================
 # Wait for AD-DS to finish promoting and DNS service to be reachable
 # ============================================================================
 resource "time_sleep" "wait_for_dc_dns" {
   depends_on = [
-    module.domain_controller,
-    azurerm_virtual_network_dns_servers.use_dc_for_dns
+    module.domain_controller
   ]
 
   create_duration = "180s"
