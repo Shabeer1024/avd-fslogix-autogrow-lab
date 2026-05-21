@@ -269,24 +269,6 @@ The **core pattern** (Logic App → Runbook → Hybrid Worker → action with ca
 
 ---
 
-## Cost
-
-Lab session (5 hours, two B2s VMs running):
-
-| Component | Cost |
-|-----------|------|
-| 2× B2s Windows VMs (5 hr) | ~₹70 |
-| OS disks | ~₹6 |
-| Public IP | ~₹2 |
-| Azure Files (100 GB quota, <1 GB used) | ~₹0.10 |
-| Logic App (free tier) | ₹0 |
-| Automation Account (free tier — under 500 min/month) | ₹0 |
-| **Total** | **~₹80 (~$0.95)** |
-
-For production sizing, cost is dominated by session host VMs and depends on scaling profile.
-
----
-
 ## Teardown
 
 ```bash
