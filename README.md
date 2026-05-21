@@ -377,14 +377,6 @@ Planned future work:
 
 MIT — see [LICENSE](./LICENSE)
 
----
-
-## Acknowledgments
-
-- Microsoft FSLogix documentation team
-- HashiCorp Terraform AzureRM provider maintainers
-- The Azure Virtual Desktop product team
-- Inspiration from the broader AVD ops community sharing automation patterns publicly
 
 ---
 
